@@ -1,4 +1,6 @@
-/* RankRise scoring + persistence (v3 Integrity) */
+/* RankRise scoring + persistence (v3 Integrity, Schema Migrations & Pure Derived State) */
+const SCHEMA_VERSION = 3;
+
 const DIFF = { easy: 0.8, medium: 1.0, hard: 1.3 };
 const URG = { low: 0.9, medium: 1.0, high: 1.1 };
 const RANKS = [
@@ -18,6 +20,7 @@ const STORAGE_KEYS = {
 };
 
 const RankDB = {
+  version: SCHEMA_VERSION,
   tasks: [],
   streak: 0,
   lastActivityDate: null,
@@ -32,25 +35,56 @@ function generateUUID() {
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 
+/* --- Defensive Loader & Schema Migration Engine --- */
 function loadRankDB() {
   try {
-    const r = JSON.parse(localStorage.getItem(STORAGE_KEYS.rankDB) || 'null');
-    if (!r) return;
-    if (Array.isArray(r.tasks)) RankDB.tasks = r.tasks;
-    if (typeof r.streak === 'number') RankDB.streak = r.streak;
-    if (r.lastActivityDate) RankDB.lastActivityDate = r.lastActivityDate;
-    if (RankDB.lastActivityDate) {
-      const d = Math.round((new Date(todayStr()) - new Date(RankDB.lastActivityDate)) / 86400000);
-      if (d > 1) RankDB.streak = 0;
+    const raw = localStorage.getItem(STORAGE_KEYS.rankDB);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+
+    if (parsed && typeof parsed === 'object') {
+      // Defensive Task Sanitization
+      if (Array.isArray(parsed.tasks)) {
+        RankDB.tasks = parsed.tasks.map(t => ({
+          id: t.id || generateUUID(),
+          timestamp: typeof t.timestamp === 'number' ? t.timestamp : Date.now(),
+          date: typeof t.date === 'string' ? t.date : todayStr(),
+          title: typeof t.title === 'string' ? t.title : 'Untitled Session',
+          duration: typeof t.duration === 'number' ? t.duration : 25,
+          difficulty: DIFF[t.difficulty] ? t.difficulty : 'medium',
+          urgency: URG[t.urgency] ? t.urgency : 'medium',
+          energy: ['low', 'medium', 'high'].includes(t.energy) ? t.energy : 'medium',
+          completionRatio: typeof t.completionRatio === 'number' ? Math.min(1, Math.max(0.1, t.completionRatio)) : 1,
+          bonus: typeof t.bonus === 'number' ? t.bonus : 0,
+          score: typeof t.score === 'number' ? t.score : 0,
+          verified: Boolean(t.verified),
+          verificationId: t.verificationId || null,
+          outboxItemId: t.outboxItemId || null,
+          noteId: t.noteId || null,
+          noteTitle: t.noteTitle || null,
+        }));
+      }
+
+      if (typeof parsed.streak === 'number') RankDB.streak = Math.max(0, parsed.streak);
+      if (typeof parsed.lastActivityDate === 'string') RankDB.lastActivityDate = parsed.lastActivityDate;
+
+      // Validate streak expiration
+      if (RankDB.lastActivityDate) {
+        const d = Math.round((new Date(todayStr()) - new Date(RankDB.lastActivityDate)) / 86400000);
+        if (d > 1) RankDB.streak = 0;
+      }
     }
-  } catch (_) {}
+  } catch (err) {
+    console.warn('RankDB Defensive Loader: Recovered from malformed storage', err);
+  }
 }
 
 function saveRankDB() {
+  RankDB.version = SCHEMA_VERSION;
   localStorage.setItem(STORAGE_KEYS.rankDB, JSON.stringify(RankDB));
 }
 
-/* --- Persistent Verification Handlers --- */
+/* --- Persistent Verification Tokens --- */
 function saveVerificationToken(token) {
   localStorage.setItem(STORAGE_KEYS.verification, JSON.stringify(token));
 }
@@ -84,6 +118,20 @@ function calcScore(mins, diff, comp, urg, bonus) {
   return +(((mins / 25) * (DIFF[diff] ?? 1) * comp * (URG[urg] ?? 1)) + bonus).toFixed(2);
 }
 
+/* --- Pure Derived State Calculations --- */
+function deriveTotalScore() {
+  return RankDB.tasks.reduce((sum, t) => sum + (t.score || 0), 0);
+}
+
+function deriveTodayScore() {
+  const t = todayStr();
+  return RankDB.tasks.filter(x => x.date === t).reduce((sum, x) => sum + (x.score || 0), 0);
+}
+
+function deriveVerifiedCount() {
+  return RankDB.tasks.filter(x => x.verified).length;
+}
+
 function resolveRank(total) {
   const score = Math.max(0, total);
   let tier = RANKS[RANKS.length - 1];
@@ -110,9 +158,8 @@ function strain(energy, comp) {
   return { icon: '⚡', title: 'Balanced', msg: 'Energy and output look aligned.' };
 }
 
-/* --- Idempotent Commit Guard --- */
+/* --- Idempotent Task Commit --- */
 function commitTaskRecord(taskData) {
-  // Idempotency Check: Refuse duplicate commits if token or outbox ID was already processed
   if (taskData.verificationId && RankDB.tasks.some(t => t.verificationId === taskData.verificationId)) {
     console.warn('IDEMPOTENCY GUARD: Rejected duplicate commit for verificationId', taskData.verificationId);
     return false;
@@ -138,5 +185,6 @@ function commitTaskRecord(taskData) {
 window.Scoring = {
   RankDB, loadRankDB, saveRankDB, saveVerificationToken, getVerificationToken,
   clearVerificationToken, bumpStreak, calcScore, resolveRank, strain, todayStr,
-  generateUUID, commitTaskRecord, RANKS,
+  generateUUID, commitTaskRecord, deriveTotalScore, deriveTodayScore, deriveVerifiedCount,
+  RANKS, SCHEMA_VERSION,
 };

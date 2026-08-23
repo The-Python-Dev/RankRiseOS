@@ -1,4 +1,4 @@
-/* App shell — wires Flipodoro + Scoring + NeuronNotes + ChronoForge (v3 Integrity) */
+/* App shell — wires Flipodoro + Scoring + NeuronNotes + ChronoForge (v3 Canonical IDs) */
 (function () {
   const { PomodoroTimer, FlipClock, TimerState, SESSION_STUDY } = Flipodoro;
   const {
@@ -120,7 +120,6 @@
         durationMin,
         completedAt: Date.now(),
       };
-      // Persist token immediately so reloads/crashes cannot wipe completed effort
       saveVerificationToken(verificationToken);
 
       if (!$('f-title').value.trim()) $('f-title').value = `Verified Focus #${timer.completedStudySessions + 1}`;
@@ -221,8 +220,11 @@
       const n = NN.getActive();
       const box = $('note-sessions');
       if (!n) return;
-      const linked = RankDB.tasks.filter(t => t.noteId === n.id || t.noteTitle === n.title);
+      
+      // V3 Fix: Strict canonical ID matching for related sessions
+      const linked = RankDB.tasks.filter(t => t.noteId === n.id);
       if (!linked.length) { box.innerHTML = '<p class="muted">No study sessions linked.</p>'; return; }
+      
       box.innerHTML = linked.slice().reverse().map(t =>
         `<div class="blink">+${t.score.toFixed(2)} · ${NN.esc(t.title)} · ${t.duration}m</div>`
       ).join('');
@@ -741,7 +743,6 @@
 
     const oldRank = resolveRank(RankDB.tasks.reduce((a, t) => a + t.score, 0)).fullTitle;
 
-    // Idempotent commit execution
     const committedRecord = commitTaskRecord({
       title: $('f-title').value.trim(),
       duration: duration,
@@ -763,7 +764,6 @@
       return;
     }
 
-    // Clean up used token or active outbox item
     if (pendingVerified) {
       clearVerificationToken();
     }

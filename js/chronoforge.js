@@ -1,11 +1,11 @@
-/* ChronoForge — week planner, soft blueprint, multi-goal, outbox → RankRise */
+/* ChronoForge — week planner, soft blueprint, multi-goal, outbox → RankRise (v3 Canonical IDs) */
 (function () {
   const STORAGE = {
     blocks: 'chronoforge_blocks_v1',
     blueprint: 'chronoforge_blueprint_v1',
     days: 'chronoforge_days_v1',
     goals: 'chronoforge_goals_v1',
-    outbox: 'rankrise_outbox_v1', // shared with Log
+    outbox: 'rankrise_outbox_v1',
   };
 
   const CATEGORIES = {
@@ -27,27 +27,29 @@
     { id: 'b_fr', title: 'Free Time', category: 'free', durationMin: 60, color: '#fd79a8', defaultDifficulty: 'easy', notes: '' },
   ];
 
-  // Mon=0 … Sun=6 — soft weekly template (block ids)
   const DEFAULT_BLUEPRINT = {
-    0: ['b_de', 'b_jp', 'b_ac', 'b_gy', 'b_po'], // Mon
-    1: ['b_jp', 'b_de', 'b_ac', 'b_gy'],         // Tue
-    2: ['b_de', 'b_jp', 'b_ac', 'b_gu'],         // Wed
-    3: ['b_jp', 'b_de', 'b_ac', 'b_gy'],         // Thu
-    4: ['b_de', 'b_jp', 'b_ac', 'b_po'],         // Fri
-    5: ['b_ac', 'b_de', 'b_jp', 'b_fr'],         // Sat
-    6: ['b_gu', 'b_fr'],                         // Sun
+    0: ['b_de', 'b_jp', 'b_ac', 'b_gy', 'b_po'],
+    1: ['b_jp', 'b_de', 'b_ac', 'b_gy'],
+    2: ['b_de', 'b_jp', 'b_ac', 'b_gu'],
+    3: ['b_jp', 'b_de', 'b_ac', 'b_gy'],
+    4: ['b_de', 'b_jp', 'b_ac', 'b_po'],
+    5: ['b_ac', 'b_de', 'b_jp', 'b_fr'],
+    6: ['b_gu', 'b_fr'],
   };
 
   const State = {
     blocks: [],
     blueprint: { ...DEFAULT_BLUEPRINT },
-    days: {},   // { 'YYYY-MM-DD': { date, chips: [] } }
+    days: {},
     goals: [],
-    weekAnchor: null, // Date (Monday of visible week)
+    weekAnchor: null,
   };
 
-  function uid(prefix) {
-    return prefix + '_' + Math.random().toString(36).slice(2, 9);
+  function uid() {
+    if (typeof Scoring !== 'undefined' && Scoring.generateUUID) {
+      return Scoring.generateUUID();
+    }
+    return 'cf_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
   }
 
   function pad(n) { return String(n).padStart(2, '0'); }
@@ -56,11 +58,10 @@
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   }
 
-  /** Monday-start week */
   function startOfWeek(date) {
     const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const day = d.getDay(); // 0 Sun … 6 Sat
-    const offset = day === 0 ? -6 : 1 - day; // back to Monday
+    const day = d.getDay();
+    const offset = day === 0 ? -6 : 1 - day;
     d.setDate(d.getDate() + offset);
     d.setHours(0, 0, 0, 0);
     return d;
@@ -92,7 +93,6 @@
   function loadAll() {
     State.blocks = loadJSON(STORAGE.blocks, null) || DEFAULT_BLOCKS.map(b => ({ ...b }));
     State.blueprint = loadJSON(STORAGE.blueprint, null) || { ...DEFAULT_BLUEPRINT };
-    // ensure keys 0-6
     for (let i = 0; i < 7; i++) {
       if (!Array.isArray(State.blueprint[i])) State.blueprint[i] = [];
     }
@@ -121,14 +121,13 @@
     return State.days[dateStr] || { date: dateStr, chips: [] };
   }
 
-  /** Soft apply: only if day has zero chips */
   function applyBlueprintToWeek(monday) {
     const dates = weekDates(monday);
     let filled = 0;
     dates.forEach((d, dow) => {
       const ds = toDateStr(d);
       const day = ensureDay(ds);
-      if (day.chips.length > 0) return; // soft: skip non-empty
+      if (day.chips.length > 0) return;
       const ids = State.blueprint[dow] || [];
       day.chips = ids.map(bid => chipFromBlock(bid)).filter(Boolean);
       if (day.chips.length) filled++;
@@ -141,14 +140,14 @@
     const b = getBlock(blockId);
     if (!b) return null;
     return {
-      instanceId: uid('c'),
+      instanceId: uid(),
       blockId: b.id,
       title: b.title,
       durationMin: b.durationMin,
       category: b.category,
       color: b.color || (CATEGORIES[b.category] && CATEGORIES[b.category].color) || '#888',
       defaultDifficulty: b.defaultDifficulty || 'medium',
-      status: 'planned', // planned | done | skipped
+      status: 'planned',
     };
   }
 
@@ -172,7 +171,6 @@
     } else {
       to.chips.push(chip);
     }
-    // cleanup empty day records optional
     saveDays();
     return true;
   }
@@ -202,10 +200,9 @@
     saveDays();
   }
 
-  /* ----- Blocks CRUD ----- */
-  function createBlock( partial ) {
+  function createBlock(partial) {
     const b = {
-      id: uid('b'),
+      id: uid(),
       title: (partial.title || 'New block').trim(),
       category: partial.category || 'academics',
       durationMin: Math.max(5, parseInt(partial.durationMin, 10) || 45),
@@ -229,7 +226,6 @@
 
   function deleteBlock(id) {
     State.blocks = State.blocks.filter(b => b.id !== id);
-    // scrub blueprint refs
     for (let i = 0; i < 7; i++) {
       State.blueprint[i] = (State.blueprint[i] || []).filter(bid => bid !== id);
     }
@@ -237,10 +233,9 @@
     saveBlueprint();
   }
 
-  /* ----- Goals ----- */
   function createGoal({ name, targetDate, startDate, color }) {
     const g = {
-      id: uid('g'),
+      id: uid(),
       name: (name || 'Goal').trim(),
       targetDate: targetDate,
       startDate: startDate || toDateStr(new Date()),
@@ -270,7 +265,6 @@
     return { daysLeft, pct, total, elapsed };
   }
 
-  /* ----- Outbox (shared with RankRise Log) ----- */
   function readOutbox() {
     return loadJSON(STORAGE.outbox, []) || [];
   }
@@ -279,7 +273,6 @@
     saveJSON(STORAGE.outbox, list);
   }
 
-  /** Mark chip done + push to outbox (commit later in Log). Trust policy B applied at commit time in app.js */
   function queueChipToOutbox(dateStr, instanceId) {
     const day = ensureDay(dateStr);
     const chip = day.chips.find(c => c.instanceId === instanceId);
@@ -288,12 +281,11 @@
     saveDays();
 
     const box = readOutbox();
-    // avoid dup queue for same instance
     if (box.some(x => x.instanceId === instanceId && x.status === 'queued')) {
       return box.find(x => x.instanceId === instanceId);
     }
     const item = {
-      id: uid('o'),
+      id: uid(),
       source: 'chronoforge',
       title: chip.title,
       durationMin: chip.durationMin,
@@ -324,7 +316,6 @@
     return readOutbox().filter(x => x.status === 'queued');
   }
 
-  /** Did user complete a verified Flipodoro focus on this local date? (for policy B) */
   function hadVerifiedFocusOn(dateStr) {
     try {
       const raw = JSON.parse(localStorage.getItem('rankrise_data_v2') || 'null');

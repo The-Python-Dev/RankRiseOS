@@ -1,10 +1,17 @@
-/* NeuronNotes — virtual vault, [[wiki-links]], #tags, backlinks, md import/export */
+/* NeuronNotes — virtual vault, [[wiki-links]], #tags, backlinks, md import/export (v3 Canonical IDs & Link Refactoring) */
 const NotesVault = {
   notes: [], // { id, title, body, updatedAt }
   activeId: null,
   filterTag: null,
   query: '',
 };
+
+function getUUID() {
+  if (typeof Scoring !== 'undefined' && Scoring.generateUUID) {
+    return Scoring.generateUUID();
+  }
+  return 'n_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+}
 
 function loadVault() {
   try {
@@ -15,7 +22,7 @@ function loadVault() {
     }
   } catch (_) {}
   if (!NotesVault.notes.length) {
-    const id = uid();
+    const id = getUUID();
     NotesVault.notes.push({
       id,
       title: 'Welcome',
@@ -34,23 +41,52 @@ function saveVault() {
   }));
 }
 
-function uid() { return 'n_' + Math.random().toString(36).slice(2, 10); }
-
 function getActive() {
   return NotesVault.notes.find(n => n.id === NotesVault.activeId) || null;
+}
+
+/** Refactors all occurrences of [[Old Title]] to [[New Title]] across all notes */
+function refactorVaultWikiLinks(oldTitle, newTitle) {
+  if (!oldTitle || !newTitle || oldTitle.toLowerCase() === newTitle.toLowerCase()) return;
+  
+  const escapedOld = oldTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp('\\[\\[\\s*' + escapedOld + '\\s*\\]\\]', 'gi');
+
+  NotesVault.notes.forEach(note => {
+    if (re.test(note.body)) {
+      note.body = note.body.replace(re, `[[${newTitle}]]`);
+      note.updatedAt = Date.now();
+    }
+  });
 }
 
 function upsertNote(partial) {
   const n = getActive();
   if (!n) return;
-  if (partial.title != null) n.title = partial.title.trim() || 'Untitled';
+
+  const oldTitle = n.title;
+  let titleChanged = false;
+
+  if (partial.title != null) {
+    const cleanTitle = partial.title.trim() || 'Untitled';
+    if (cleanTitle.toLowerCase() !== oldTitle.toLowerCase()) {
+      titleChanged = true;
+    }
+    n.title = cleanTitle;
+  }
+  
   if (partial.body != null) n.body = partial.body;
   n.updatedAt = Date.now();
+
+  if (titleChanged) {
+    refactorVaultWikiLinks(oldTitle, n.title);
+  }
+
   saveVault();
 }
 
 function createNote(title = 'Untitled', body = '') {
-  const id = uid();
+  const id = getUUID();
   let t = title.trim() || 'Untitled';
   const exists = NotesVault.notes.some(n => n.title.toLowerCase() === t.toLowerCase());
   if (exists) t = t + ' ' + NotesVault.notes.length;

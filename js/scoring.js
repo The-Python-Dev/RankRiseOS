@@ -1,4 +1,4 @@
-/* RankRise scoring + persistence */
+/* RankRise scoring + persistence (v3 Integrity) */
 const DIFF = { easy: 0.8, medium: 1.0, hard: 1.3 };
 const URG = { low: 0.9, medium: 1.0, high: 1.1 };
 const RANKS = [
@@ -12,17 +12,29 @@ const RANKS = [
   { name: 'Elite Legend', symbol: '⚔️', min: 2000, max: Infinity, steps: [] },
 ];
 
+const STORAGE_KEYS = {
+  rankDB: 'rankrise_data_v2',
+  verification: 'rankrise_verification_v3',
+};
+
 const RankDB = {
   tasks: [],
   streak: 0,
   lastActivityDate: null,
 };
 
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'id_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+}
+
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 
 function loadRankDB() {
   try {
-    const r = JSON.parse(localStorage.getItem('rankrise_data_v2') || 'null');
+    const r = JSON.parse(localStorage.getItem(STORAGE_KEYS.rankDB) || 'null');
     if (!r) return;
     if (Array.isArray(r.tasks)) RankDB.tasks = r.tasks;
     if (typeof r.streak === 'number') RankDB.streak = r.streak;
@@ -35,7 +47,24 @@ function loadRankDB() {
 }
 
 function saveRankDB() {
-  localStorage.setItem('rankrise_data_v2', JSON.stringify(RankDB));
+  localStorage.setItem(STORAGE_KEYS.rankDB, JSON.stringify(RankDB));
+}
+
+/* --- Persistent Verification Handlers --- */
+function saveVerificationToken(token) {
+  localStorage.setItem(STORAGE_KEYS.verification, JSON.stringify(token));
+}
+
+function getVerificationToken() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.verification) || 'null');
+  } catch (_) {
+    return null;
+  }
+}
+
+function clearVerificationToken() {
+  localStorage.removeItem(STORAGE_KEYS.verification);
 }
 
 function bumpStreak() {
@@ -81,6 +110,33 @@ function strain(energy, comp) {
   return { icon: '⚡', title: 'Balanced', msg: 'Energy and output look aligned.' };
 }
 
+/* --- Idempotent Commit Guard --- */
+function commitTaskRecord(taskData) {
+  // Idempotency Check: Refuse duplicate commits if token or outbox ID was already processed
+  if (taskData.verificationId && RankDB.tasks.some(t => t.verificationId === taskData.verificationId)) {
+    console.warn('IDEMPOTENCY GUARD: Rejected duplicate commit for verificationId', taskData.verificationId);
+    return false;
+  }
+  if (taskData.outboxItemId && RankDB.tasks.some(t => t.outboxItemId === taskData.outboxItemId)) {
+    console.warn('IDEMPOTENCY GUARD: Rejected duplicate commit for outboxItemId', taskData.outboxItemId);
+    return false;
+  }
+
+  const record = {
+    id: generateUUID(),
+    timestamp: Date.now(),
+    date: todayStr(),
+    ...taskData,
+  };
+
+  RankDB.tasks.push(record);
+  bumpStreak();
+  saveRankDB();
+  return record;
+}
+
 window.Scoring = {
-  RankDB, loadRankDB, saveRankDB, bumpStreak, calcScore, resolveRank, strain, todayStr, RANKS,
+  RankDB, loadRankDB, saveRankDB, saveVerificationToken, getVerificationToken,
+  clearVerificationToken, bumpStreak, calcScore, resolveRank, strain, todayStr,
+  generateUUID, commitTaskRecord, RANKS,
 };

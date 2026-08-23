@@ -1,12 +1,14 @@
-/* App shell — wires Flipodoro + Scoring + NeuronNotes + ChronoForge */
+/* App shell — wires Flipodoro + Scoring + NeuronNotes + ChronoForge (v3 Integrity) */
 (function () {
   const { PomodoroTimer, FlipClock, TimerState, SESSION_STUDY } = Flipodoro;
-  const { RankDB, loadRankDB, saveRankDB, bumpStreak, calcScore, resolveRank, strain, todayStr } = Scoring;
+  const {
+    RankDB, loadRankDB, saveRankDB, bumpStreak, calcScore, resolveRank, strain, todayStr,
+    saveVerificationToken, getVerificationToken, clearVerificationToken, commitTaskRecord
+  } = Scoring;
   const NN = NeuronNotes;
   const CF = ChronoForge;
 
   const $ = (id) => document.getElementById(id);
-  let pendingVerified = null;
   let activeOutboxItem = null;
   let previewOn = false;
 
@@ -78,6 +80,8 @@
 
   function updateGate() {
     const btn = $('commit-btn'), banner = $('lock-banner'), help = $('commit-help'), dur = $('f-duration');
+    const pendingVerified = getVerificationToken();
+
     if (timer.state === TimerState.RUNNING) {
       btn.disabled = true; btn.textContent = '⏳ Timer running';
       banner.className = 'lock show';
@@ -88,7 +92,7 @@
       btn.disabled = false;
       btn.textContent = `✓ Commit Verified (+${pendingVerified.durationMin}m)`;
       banner.className = 'lock show ready';
-      banner.innerHTML = `✅ Verified Focus — <strong>${pendingVerified.durationMin}m</strong>`;
+      banner.innerHTML = `✅ Verified Focus — <strong>${pendingVerified.durationMin}m</strong> (Saved)`;
       dur.value = pendingVerified.durationMin; dur.disabled = true; return;
     }
     if (activeOutboxItem) {
@@ -111,11 +115,18 @@
     SFX.done();
     if (type === SESSION_STUDY) {
       const durationMin = Math.max(1, Math.round((timer._lastCompletedTotal || 25 * 60) / 60));
-      pendingVerified = { durationMin, completedAt: Date.now() };
+      const verificationToken = {
+        verificationId: Scoring.generateUUID(),
+        durationMin,
+        completedAt: Date.now(),
+      };
+      // Persist token immediately so reloads/crashes cannot wipe completed effort
+      saveVerificationToken(verificationToken);
+
       if (!$('f-title').value.trim()) $('f-title').value = `Verified Focus #${timer.completedStudySessions + 1}`;
       $('f-duration').value = durationMin;
       $('f-comp').value = 100; $('f-comp-val').textContent = '100%';
-      toast('Focus complete', `${durationMin}m verified`, '🍅');
+      toast('Focus complete', `${durationMin}m verified (saved)`, '🍅');
       showView('log');
     } else toast('Break complete', 'Back to focus when ready', '☕');
   });
@@ -228,7 +239,7 @@
   }
 
   /* ==========================================================================
-     4. CHRONOFORGE CONTROLLER (Week Grid, Drag-Drop, Goals, Outbox)
+     4. CHRONOFORGE CONTROLLER
      ========================================================================== */
   const ForgeUI = {
     refresh() {
@@ -279,7 +290,6 @@
           <button type="button" class="del" onclick="event.stopPropagation(); ForgeUI.removeBlock('${b.id}')" title="Delete block">×</button>
         </div>`).join('');
 
-      // Dragstart event listeners for palette chips
       box.querySelectorAll('.palette-chip').forEach(chip => {
         chip.addEventListener('dragstart', (e) => {
           e.dataTransfer.setData('text/plain', JSON.stringify({
@@ -330,7 +340,6 @@
 
         const stack = col.querySelector('.chip-stack');
 
-        // Render Day Chips
         dayData.chips.forEach(chip => {
           const card = document.createElement('div');
           card.className = `day-chip status-${chip.status}`;
@@ -349,7 +358,6 @@
             </div>
           `;
 
-          // Chip click action menu
           card.addEventListener('click', () => {
             if (chip.status === 'done') {
               if (confirm(`Mark "${chip.title}" as planned again?`)) {
@@ -372,7 +380,6 @@
             }
           });
 
-          // Chip dragstart
           card.addEventListener('dragstart', (e) => {
             card.classList.add('dragging');
             e.dataTransfer.setData('text/plain', JSON.stringify({
@@ -389,7 +396,6 @@
           stack.appendChild(card);
         });
 
-        // Drop target events for day columns
         col.addEventListener('dragover', (e) => {
           e.preventDefault();
           col.classList.add('drag-over');
@@ -420,7 +426,6 @@
   };
   window.ForgeUI = ForgeUI;
 
-  /* Render Log Tab Outbox List */
   function renderLogOutbox() {
     const box = $('log-outbox-list');
     const queued = CF.queuedOutbox();
@@ -689,28 +694,31 @@
   };
 
   /* ==========================================================================
-     8. SESSION LOG COMMIT FORM (TRUST POLICY B ENFORCED)
+     8. SESSION LOG COMMIT FORM (IDEMPOTENCY & TRUST POLICY B ENFORCED)
      ========================================================================== */
   $('f-comp').oninput = e => { $('f-comp-val').textContent = e.target.value + '%'; };
 
   $('task-form').onsubmit = e => {
     e.preventDefault();
     if (timer.state === TimerState.RUNNING) return toast('Locked', 'Timer running', '🔒');
+    
+    const pendingVerified = getVerificationToken();
     if (!pendingVerified && !activeOutboxItem) return toast('Locked', 'Complete Focus or select an Outbox item first', '🔒');
 
     const noteId = $('f-note').value;
     const note = NN.NotesVault.notes.find(n => n.id === noteId);
 
-    // TRUST POLICY B EVALUATION:
-    // Standard base Elo is calculated. The +0.25 Verified bonus is ONLY granted if
-    // a Flipodoro Focus session hit 0:00 or a verified focus occurred on the planned date.
     let isVerified = false;
     let bonus = 0;
+    let verificationId = null;
+    let outboxItemId = null;
 
     if (pendingVerified) {
       isVerified = true;
-      bonus += 0.25; // Flipodoro Verified Focus bonus
+      bonus += 0.25;
+      verificationId = pendingVerified.verificationId;
     } else if (activeOutboxItem) {
+      outboxItemId = activeOutboxItem.id;
       if (CF.hadVerifiedFocusOn(activeOutboxItem.plannedDate)) {
         isVerified = true;
         bonus += 0.25;
@@ -733,10 +741,8 @@
 
     const oldRank = resolveRank(RankDB.tasks.reduce((a, t) => a + t.score, 0)).fullTitle;
 
-    RankDB.tasks.push({
-      id: 'tsk_' + Math.random().toString(36).slice(2, 9),
-      timestamp: Date.now(),
-      date: todayStr(),
+    // Idempotent commit execution
+    const committedRecord = commitTaskRecord({
       title: $('f-title').value.trim(),
       duration: duration,
       difficulty: $('f-diff').value,
@@ -746,18 +752,26 @@
       bonus,
       score,
       verified: isVerified,
+      verificationId: verificationId,
+      outboxItemId: outboxItemId,
       noteId: note ? note.id : null,
       noteTitle: note ? note.title : null,
     });
+
+    if (!committedRecord) {
+      toast('Duplicate Commit Blocked', 'This session has already been logged.', '⚠️');
+      return;
+    }
+
+    // Clean up used token or active outbox item
+    if (pendingVerified) {
+      clearVerificationToken();
+    }
 
     if (activeOutboxItem) {
       CF.markOutboxCommitted(activeOutboxItem.id);
       activeOutboxItem = null;
     }
-
-    pendingVerified = null;
-    bumpStreak();
-    saveRankDB();
 
     $('f-title').value = '';
     $('f-early').checked = $('f-extra').checked = $('f-synthesis').checked = false;
@@ -782,7 +796,7 @@
   $('btn-wipe').onclick = () => {
     if (!confirm('Wipe all Elo progress?')) return;
     RankDB.tasks = []; RankDB.streak = 0; RankDB.lastActivityDate = null;
-    pendingVerified = null; activeOutboxItem = null;
+    clearVerificationToken(); activeOutboxItem = null;
     saveRankDB(); refreshRankUI(); renderLogOutbox(); updateGate();
   };
 

@@ -2,11 +2,12 @@
 
 A modular, gamified study operating system — focus timer, second brain, weekly planner, and Elo progression in one local-first app.
 
-**Version** · **Platform** · **Stack** · **License**  
-v2.0 · Web (static) · Vanilla JS · GPL-3.0
+![Version](https://img.shields.io/badge/version-2.0.0-ff6b6b)
+![Platform](https://img.shields.io/badge/platform-Web-lightgrey)
+![Stack](https://img.shields.io/badge/stack-Vanilla%20JS-3178c6)
+![License](https://img.shields.io/badge/license-GPL--3.0-4c1)
 
 ---
-
 ## What is this?
 
 RankRise OS is the web hub that ties together your productivity stack:

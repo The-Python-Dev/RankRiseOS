@@ -1,4 +1,4 @@
-/* App shell — wires Flipodoro + Scoring + NeuronNotes + ChronoForge (v3 Canonical IDs) */
+/* App shell — wires Flipodoro + Scoring + NeuronNotes + ChronoForge (v3 Integrity & Lifecycle) */
 (function () {
   const { PomodoroTimer, FlipClock, TimerState, SESSION_STUDY } = Flipodoro;
   const {
@@ -220,11 +220,8 @@
       const n = NN.getActive();
       const box = $('note-sessions');
       if (!n) return;
-      
-      // V3 Fix: Strict canonical ID matching for related sessions
       const linked = RankDB.tasks.filter(t => t.noteId === n.id);
       if (!linked.length) { box.innerHTML = '<p class="muted">No study sessions linked.</p>'; return; }
-      
       box.innerHTML = linked.slice().reverse().map(t =>
         `<div class="blink">+${t.score.toFixed(2)} · ${NN.esc(t.title)} · ${t.duration}m</div>`
       ).join('');
@@ -466,6 +463,8 @@
       activeOutboxItem = null;
       updateGate();
     }
+    // Refresh Forge UI so the dismissed chip is restored to 'planned' status
+    ForgeUI.renderWeekGrid();
   };
 
   /* ==========================================================================

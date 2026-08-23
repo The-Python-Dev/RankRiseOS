@@ -1,4 +1,4 @@
-/* ChronoForge — week planner, soft blueprint, multi-goal, outbox → RankRise (v3 Canonical IDs) */
+/* ChronoForge — week planner, soft blueprint, multi-goal, outbox → RankRise (v3 Canonical IDs & Lifecycle Guards) */
 (function () {
   const STORAGE = {
     blocks: 'chronoforge_blocks_v1',
@@ -179,6 +179,10 @@
     const day = ensureDay(dateStr);
     day.chips = day.chips.filter(c => c.instanceId !== instanceId);
     saveDays();
+
+    // V3 Fix: Purge any queued outbox items for this deleted chip
+    const box = readOutbox().filter(x => x.instanceId !== instanceId);
+    writeOutbox(box);
   }
 
   function setChipStatus(dateStr, instanceId, status) {
@@ -194,6 +198,11 @@
     weekDates(monday).forEach(d => {
       const ds = toDateStr(d);
       if (State.days[ds]) {
+        // Purge outbox items for cleared chips
+        State.days[ds].chips.forEach(c => {
+          const box = readOutbox().filter(x => x.instanceId !== c.instanceId);
+          writeOutbox(box);
+        });
         State.days[ds].chips = [];
       }
     });
@@ -303,8 +312,14 @@
   }
 
   function dismissOutbox(id) {
-    const box = readOutbox().map(x => x.id === id ? { ...x, status: 'dismissed' } : x);
-    writeOutbox(box);
+    const box = readOutbox();
+    const targetItem = box.find(x => x.id === id);
+    if (targetItem) {
+      // V3 Fix: Revert chip status back to 'planned' when dismissed
+      setChipStatus(targetItem.plannedDate, targetItem.instanceId, 'planned');
+    }
+    const updatedBox = box.map(x => x.id === id ? { ...x, status: 'dismissed' } : x);
+    writeOutbox(updatedBox);
   }
 
   function markOutboxCommitted(id) {

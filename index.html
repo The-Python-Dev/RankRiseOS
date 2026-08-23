@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RankRise × Flipodoro × NeuronNotes × ChronoForge</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- HEADER -->
+    <header class="header card">
+      <div class="brand">
+        <div class="brand-ico">♔</div>
+        <div>
+          <h1>RankRise</h1>
+          <p>Focus · Notes · Calibration · Roadmap</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <a class="promo" href="https://github.com/The-Python-Dev/flipodoro" target="_blank" rel="noopener">🍅 Flipodoro</a>
+        <a class="promo promo-coral" href="https://github.com/The-Python-Dev/neuronnotes" target="_blank" rel="noopener">🧠 NeuronNotes</a>
+        <div class="streak">🔥 <span id="streak-count">0</span>d</div>
+        <button type="button" class="icon-btn" id="theme-btn" title="Theme">🌙</button>
+      </div>
+    </header>
+
+    <!-- MAIN NAV TABS -->
+    <nav class="main-tabs card">
+      <button type="button" class="main-tab active" data-view="focus">🍅 Focus</button>
+      <button type="button" class="main-tab" data-view="notes">🧠 Notes</button>
+      <button type="button" class="main-tab" data-view="log">📋 Log & Rank</button>
+      <button type="button" class="main-tab" data-view="forge">⚒️ ChronoForge</button>
+    </nav>
+
+    <!-- ========== VIEW: FOCUS ========== -->
+    <div id="view-focus" class="view">
+      <div class="top">
+        <section class="card rank-card">
+          <div class="rank-hero">
+            <div class="piece" id="rank-icon">♙</div>
+            <div class="rank-meta">
+              <div class="lbl">Current Standing</div>
+              <h2 id="rank-text">Pawn I</h2>
+              <div class="bar-labs"><span id="rank-lo">0</span><span id="rank-hi">40</span></div>
+              <div class="track"><div class="fill" id="rank-bar"></div></div>
+            </div>
+          </div>
+          <div class="metrics">
+            <div class="metric"><h4>Elo</h4><p class="g" id="total-score">0.00</p></div>
+            <div class="metric"><h4>Today</h4><p id="today-score">0.00</p></div>
+            <div class="metric"><h4>Verified</h4><p class="t" id="verified-count">0</p></div>
+          </div>
+          <div class="diag">
+            <div id="diag-icon">⚡</div>
+            <div>
+              <h5 id="diag-title">Diagnostics</h5>
+              <p id="diag-msg">Complete a Focus session to unlock scoring.</p>
+            </div>
+          </div>
+          <div id="lock-banner" class="lock show">🔒 Finish Focus (not Skip) to verify.</div>
+        </section>
+
+        <section class="card timer-card" id="timer-card" data-mode="study">
+          <div class="timer-top-actions">
+            <span class="powered"><a href="https://github.com/The-Python-Dev/flipodoro" target="_blank">Flipodoro</a></span>
+            <button type="button" class="gear-btn" id="btn-settings">⚙</button>
+          </div>
+          <div class="session-label" id="session-label">Focus Session</div>
+          <div class="tabs">
+            <button type="button" class="tab active" data-session="study">Focus</button>
+            <button type="button" class="tab" data-session="short_break">Short</button>
+            <button type="button" class="tab" data-session="long_break">Long</button>
+          </div>
+          <div class="flip-row" id="flip-row"></div>
+          <div class="controls">
+            <button type="button" class="ctrl" id="btn-reset">Reset</button>
+            <button type="button" class="ctrl main" id="btn-start">Start</button>
+            <button type="button" class="ctrl" id="btn-skip">Skip</button>
+            <button type="button" class="ctrl icon" id="btn-fs">⛶</button>
+          </div>
+          <div class="dots" id="dots"></div>
+          <div class="keys">
+            <span><kbd>Space</kbd></span><span><kbd>R</kbd></span><span><kbd>S</kbd></span><span><kbd>F</kbd></span>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ========== VIEW: NOTES (NeuronNotes) ========== -->
+    <div id="view-notes" class="view hidden">
+      <div class="notes-layout">
+        <!-- sidebar -->
+        <aside class="card notes-sidebar">
+          <div class="notes-side-head">
+            <h3>Vault</h3>
+            <button type="button" class="icon-btn sm" id="btn-new-note" title="New note">＋</button>
+          </div>
+          <input type="search" id="note-search" placeholder="Search notes…" class="search-inp" />
+          <div class="tag-cloud" id="tag-cloud"></div>
+          <div class="note-list" id="note-list"></div>
+          <div class="vault-actions">
+            <button type="button" class="tbtn" id="btn-export-vault">Export .md</button>
+            <button type="button" class="tbtn" id="btn-import-md">Import .md</button>
+            <input type="file" id="import-files" accept=".md,text/markdown" multiple hidden />
+          </div>
+        </aside>
+
+        <!-- editor -->
+        <section class="card notes-editor-wrap">
+          <div class="editor-toolbar">
+            <input type="text" id="note-title" placeholder="Note title" class="title-inp" />
+            <div class="editor-actions">
+              <button type="button" class="tbtn" id="btn-preview-toggle">Preview</button>
+              <button type="button" class="tbtn danger" id="btn-delete-note">Delete</button>
+            </div>
+          </div>
+          <textarea id="note-body" class="note-body" placeholder="Write markdown… use [[WikiLinks]] and #tags&#10;&#10;Paste images from clipboard — stored inline."></textarea>
+          <div id="note-preview" class="note-preview hidden"></div>
+          <p class="editor-hint">[[links]] · #tags · Ctrl+Click link in preview · images via paste (base64)</p>
+        </section>
+
+        <!-- backlinks -->
+        <aside class="card notes-backlinks">
+          <h3>Backlinks</h3>
+          <div id="backlinks-list" class="backlinks-list">
+            <p class="muted">No backlinks yet.</p>
+          </div>
+          <h3 class="mt">Linked sessions</h3>
+          <div id="note-sessions" class="backlinks-list">
+            <p class="muted">No study sessions linked.</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ========== VIEW: LOG ========== -->
+    <div id="view-log" class="view hidden">
+      <section class="card">
+        <h3 class="sec">Log Verified Session</h3>
+        <form id="task-form" class="form-grid">
+          <label class="f span2">Task / Subject<input id="f-title" type="text" required placeholder="What did you study?" /></label>
+          <label class="f">Duration (min)<input id="f-duration" type="number" min="1" max="240" value="25" required /></label>
+          <label class="f">Link note
+            <select id="f-note">
+              <option value="">— none —</option>
+            </select>
+          </label>
+          <label class="f">Difficulty
+            <select id="f-diff">
+              <option value="easy">Easy 0.8×</option>
+              <option value="medium" selected>Medium 1.0×</option>
+              <option value="hard">Hard 1.3×</option>
+            </select>
+          </label>
+          <label class="f">Urgency
+            <select id="f-urgency">
+              <option value="low">Low 0.9×</option>
+              <option value="medium" selected>Medium 1.0×</option>
+              <option value="high">High 1.1×</option>
+            </select>
+          </label>
+          <label class="f">Energy
+            <select id="f-energy">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+          <label class="f span2">Completion
+            <div class="slider">
+              <input id="f-comp" type="range" min="10" max="100" value="100" step="5" />
+              <span class="sval" id="f-comp-val">100%</span>
+            </div>
+          </label>
+          <div class="bonuses span2">
+            <label class="bonus"><input type="checkbox" id="f-early" /> Finished early (+0.15)</label>
+            <label class="bonus"><input type="checkbox" id="f-extra" /> Extra practice (+0.10)</label>
+            <label class="bonus"><input type="checkbox" id="f-synthesis" /> Used notes / wiki-links (+0.20)</label>
+          </div>
+          <div class="span2">
+            <button class="submit" id="commit-btn" type="submit" disabled>🔒 Complete Focus first</button>
+            <p class="help" id="commit-help">Verified Elo only after natural Focus completion.</p>
+          </div>
+        </form>
+      </section>
+
+      <!-- ChronoForge Outbox Section inside Log Tab -->
+      <section class="card" style="margin-top:16px">
+        <h3 class="sec">⚒️ ChronoForge Outbox (Queued Planned Tasks)</h3>
+        <div id="log-outbox-list" class="outbox-list">
+          <p class="muted">No planned tasks queued from ChronoForge.</p>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:16px">
+        <div class="ledger-head">
+          <h3>Session Ledger</h3>
+          <div>
+            <button type="button" class="tbtn" id="btn-export">Backup JSON</button>
+            <button type="button" class="tbtn danger" id="btn-wipe">Reset</button>
+          </div>
+        </div>
+        <div class="list" id="ledger"></div>
+      </section>
+    </div>
+
+    <!-- ========== VIEW: CHRONOFORGE ========== -->
+    <div id="view-forge" class="view hidden">
+      <!-- Active Goals Bar -->
+      <section class="card" style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <h3 style="font-size:1rem">🎯 Active Target Goals</h3>
+          <button type="button" class="tbtn" id="btn-add-goal">＋ New Goal</button>
+        </div>
+        <div class="goals-bar" id="goals-bar-container">
+          <p class="muted">No target goals set yet.</p>
+        </div>
+      </section>
+
+      <!-- Forge Layout: Palette (Left) + Week Grid (Right) -->
+      <div class="forge-layout">
+        <!-- Palette Sidebar -->
+        <aside class="card forge-palette">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <h3 style="font-size:0.95rem">Palette (Drag blocks)</h3>
+            <button type="button" class="icon-btn sm" id="btn-add-block" title="Create block">＋</button>
+          </div>
+          <p class="muted" style="font-size:0.72rem">Drag blocks directly onto week days.</p>
+          <div class="palette-list" id="palette-list"></div>
+        </aside>
+
+        <!-- Week Grid View -->
+        <section class="card">
+          <div class="week-toolbar">
+            <div class="week-nav">
+              <button type="button" class="tbtn" id="btn-prev-week">← Prev</button>
+              <button type="button" class="tbtn" id="btn-today-week">This Week</button>
+              <button type="button" class="tbtn" id="btn-next-week">Next →</button>
+              <span class="week-title" id="week-date-label">Week Range</span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button type="button" class="tbtn" id="btn-apply-blueprint" title="Fills empty days only">Apply Blueprint (Empty Days)</button>
+              <button type="button" class="tbtn danger" id="btn-clear-week">Clear Week</button>
+            </div>
+          </div>
+
+          <!-- 7-day grid -->
+          <div class="week-grid" id="week-grid-container"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div class="scrim" id="settings-scrim">
+    <div class="modal">
+      <h3>Timer Settings</h3>
+      <p class="sub">Flipodoro durations</p>
+      <div class="modal-grid">
+        <label>Focus<input id="cfg-study" type="number" min="1" max="120" value="25" /></label>
+        <label>Short<input id="cfg-short" type="number" min="1" max="120" value="5" /></label>
+        <label>Long<input id="cfg-long" type="number" min="1" max="120" value="15" /></label>
+        <label>Cycle<input id="cfg-cycle" type="number" min="1" max="10" value="4" /></label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="settings-cancel">Cancel</button>
+        <button type="button" class="btn-save" id="settings-save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New Goal Modal -->
+  <div class="scrim" id="goal-scrim">
+    <div class="modal">
+      <h3>Add Target Goal</h3>
+      <p class="sub">Set a countdown target</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <label class="f">Goal Name<input id="goal-name-inp" type="text" placeholder="e.g. Class 11 Finals / JLPT N5" /></label>
+        <label class="f">Target Date<input id="goal-date-inp" type="date" /></label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="goal-cancel">Cancel</button>
+        <button type="button" class="btn-save" id="goal-save">Save Goal</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">
+    <div id="toast-ico">🏆</div>
+    <div><strong id="toast-title"></strong><p id="toast-body"></p></div>
+  </div>
+
+  <!-- Script order matters -->
+  <script src="js/flipodoro.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/notes.js"></script>
+  <script src="js/chronoforge.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

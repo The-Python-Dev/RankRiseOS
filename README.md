@@ -7,7 +7,7 @@ A modular, gamified study operating system — focus timer, second brain, weekly
 ![Stack](https://img.shields.io/badge/stack-Vanilla%20JS-3178c6)
 ![License](https://img.shields.io/badge/license-GPL--3.0-4c1)
 
-🚀 **Live App:** [https://rankrise-os.netlify.app](https://rankrise-os.netlify.app) *(or your custom Netlify URL)*
+🚀 **Live App:** [https://rankrise-os.netlify.app](https://rankrise-os.netlify.app) 
 
 ---
 
@@ -163,4 +163,3 @@ RankRiseOS/
 ## Author
 
 Made by **Om Dautkhani** ([@The-Python-Dev](https://github.com/The-Python-Dev))
-```

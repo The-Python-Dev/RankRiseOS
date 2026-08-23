@@ -2,12 +2,15 @@
 
 A modular, gamified study operating system — focus timer, second brain, weekly planner, and Elo progression in one local-first app.
 
-![Version](https://img.shields.io/badge/version-2.0.0-ff6b6b)
+![Version](https://img.shields.io/badge/version-3.0.0-ff6b6b)
 ![Platform](https://img.shields.io/badge/platform-Web-lightgrey)
 ![Stack](https://img.shields.io/badge/stack-Vanilla%20JS-3178c6)
 ![License](https://img.shields.io/badge/license-GPL--3.0-4c1)
 
+🚀 **Live App:** [https://rankrise-os.netlify.app](https://rankrise-os.netlify.app) *(or your custom Netlify URL)*
+
 ---
+
 ## What is this?
 
 RankRise OS is the web hub that ties together your productivity stack:
@@ -21,7 +24,7 @@ RankRise OS is the web hub that ties together your productivity stack:
 
 Plan in ChronoForge → prove it with Flipodoro → bank Elo in RankRise → capture knowledge in NeuronNotes.
 
-No accounts. No cloud. Open `index.html` and go.
+No accounts. No cloud. Open `index.html` or visit the live link and go.
 
 ---
 
@@ -33,17 +36,17 @@ No accounts. No cloud. Open `index.html` and go.
 - Session dots / cycle before long break
 - Pause, resume, reset, skip
 - Focus mode (fullscreen)
-- Wall-clock style tick loop
+- Wall-clock timestamp tick loop (anti-throttle)
 - Keyboard shortcuts (Space, R, S, F, Esc)
 - Settings for durations + cycle length
-- **Verified Focus** unlocks full Elo bonus on commit
+- **Verified Focus** unlocks full Elo bonus on commit (persistent across page refresh)
 
 ### 🧠 NeuronNotes (Knowledge)
 - Clean markdown editor + preview
 - Bidirectional `[[wiki-links]]` (click to jump / create)
 - `#hashtag` system with sidebar filter
 - Backlinks panel
-- Linked study sessions per note
+- Linked study sessions per note (canonical UUIDs)
 - Clipboard image paste (inline base64)
 - Search across vault
 - Import / export plain `.md` (desktop-friendly)
@@ -66,7 +69,7 @@ No accounts. No cloud. Open `index.html` and go.
 - Streak tracking
 - Energy diagnostics (burnout / attention leak flags)
 - Session ledger with delete + JSON backup
-- Link commits to NeuronNotes
+- Pure derived state (recalculated dynamically from canonical tasks)
 - Dark / light theme
 
 ---
@@ -87,6 +90,16 @@ No accounts. No cloud. Open `index.html` and go.
 | Skip timer | Advances cycle, **zero** Elo |
 
 Planning is not proof. The timer is the anti-cheat gate.
+
+---
+
+## System Integrity (V3 Hardening)
+
+- **Persistent Verification Tokens:** Uncommitted verified sessions survive tab refreshes and crashes (`localStorage`).
+- **Idempotent Commit Guard:** `commitTaskRecord()` blocks double-click Elo farming and token reuse.
+- **Anti-Throttle Engine:** `Flipodoro` calculates remaining time via `Date.now()` timestamp deltas + `visibilitychange` focus recovery.
+- **Defensive Schema Loader:** Startup migration auto-sanitizes stored JSON under `SCHEMA_VERSION = 3`.
+- **Pure Derived State:** Rank, streaks, today's totals, and diagnostics are computed dynamically from `RankDB.tasks`.
 
 ---
 
@@ -116,86 +129,38 @@ No install. No build. No Python.
 git clone https://github.com/The-Python-Dev/RankRiseOS.git
 cd RankRiseOS
 # then open index.html
-Project structure
-text
+```
 
+---
+
+## Project structure
+
+```text
 RankRiseOS/
 ├── index.html              # Shell + all views
 ├── css/
 │   └── app.css             # Themes + layout (light/dark)
 ├── js/
-│   ├── flipodoro.js        # Timer engine + flip clock
-│   ├── scoring.js          # Elo, ranks, RankDB
+│   ├── flipodoro.js        # Anti-throttle timer engine + flip clock
+│   ├── scoring.js          # Elo, ranks, schema migrations, derived state
 │   ├── notes.js            # Vault, wiki-links, tags, MD
-│   ├── chronoforge.js      # Blocks, week, goals, outbox
+│   ├── chronoforge.js      # Blocks, week, goals, outbox state machine
 │   └── app.js              # UI coordinator
+├── favicon.svg             # Vector tab icon
+├── icon.svg                # 512x512 app mark
 ├── README.md
 └── LICENSE                 # GPL-3.0
-Architecture highlights
-100% separation of domains — timer, notes, forge, scoring don’t own each other’s rules; app.js only wires UI
-Local-first — localStorage for RankDB, vault, forge, outbox, theme, timer config
-Outbox bridge — ChronoForge → rankrise_outbox_v1 → Log commit (no instant free Elo)
-Soft blueprints — empty days only; your manual week stays yours
-Export-friendly notes — plain .md compatible with desktop NeuronNotes / Obsidian-style workflows
-No dependencies — vanilla JS, runs from file://
-Your data
-Data	Where
-Elo / ledger / streak	localStorage → rankrise_data_v2
-Notes vault	localStorage → neuronnotes_vault_v1
-ChronoForge blocks / days / goals	chronoforge_*_v1
-Outbox queue	rankrise_outbox_v1
-Theme / timer settings	rankrise_theme, rankrise_timer_cfg
-Backup ledger: Log → Backup JSON
-Backup notes: Notes → Export .md
-Reset Elo: Log → Reset (does not wipe notes/forge unless you clear site data)
-No cloud. No account. No tracking.
+```
 
-Related projects
-Flipodoro — desktop flip-clock Pomodoro
-NeuronNotes — desktop markdown second brain
-RankRise OS ports their ideas into one browser OS and adds ChronoForge + Elo.
+---
 
-Known issues (v2.0)
-Verification unlock (pendingVerified) is in-memory — refresh before commit can drop a finished Focus unlock
-Outbox / commit not fully idempotent under extreme double-click races
-Timer interval can drift if the tab is heavily background-throttled
-Note↔session links still partly title-sensitive in older paths
-No automated test suite yet
-Month view for ChronoForge not shipped (week only)
-All of the above are v3 targets (integrity, not feature spam).
+## License
 
-Roadmap
-v2.0 — Ecosystem (current)
- Flipodoro tab
- NeuronNotes tab
- ChronoForge tab (blocks, DnD week, goals, outbox)
- RankRise scoring + ledger
- Dark / light theme
- Modular multi-file layout
-v3.0 — Integrity (“fewer ways for the system to lie”)
- Persistent verification state (survive refresh)
- Idempotent commits (no double Elo)
- Timestamp-based timer (anti-throttle)
- crypto.randomUUID() + canonical IDs everywhere
- Explicit lifecycles: planned → done → queued → committed
- Defensive loaders + schema version / v2 migration
- Attack checklist + regression tests
-v4.0 — (ideas parked until v3 is solid)
-Your call — month view, desktop vault sync, analytics, PWA, etc.
-Built with
-HTML5 / CSS3 (custom properties, light + dark)
-Vanilla JavaScript (ES6+)
-Web Audio API (completion / rank-up cues)
-localStorage
-No React. No build step. No npm required to run.
+**GNU General Public License v3.0 (GPL-3.0)** — See [LICENSE](./LICENSE) for details.
 
-License
-GNU General Public License v3.0 (GPL-3.0)
+---
 
-You can use, study, and modify this software. If you distribute a modified version, it must also be open source under GPL-3.0.
-See LICENSE and https://www.gnu.org/licenses/gpl-3.0.html
+## Author
 
-Author
-Made by Om Dautkhani (@The-Python-Dev)
-
-Flipodoro · NeuronNotes · RankRise OS — one ecosystem, built in public.
+Made by **Om Dautkhani** ([@The-Python-Dev](https://github.com/The-Python-Dev))
+```
